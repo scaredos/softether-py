@@ -1,0 +1,22 @@
+###
+# UnknownVPN-Py-API Installation Guide
+###
+1.) Prerequisite installation
+  1.1) Follow the setup bash script, or
+  1.2) Run these commands as root
+    1.2.a) apt update -y && apt upgrade -y
+    1.2.b) apt install screen python3 python3-pip -y
+    1.2.c) pip3 install requests chalice
+
+2.) Now that all requirements are met, download the ZIP of the files
+
+3.) To move the files to our proper folder, run the following:
+  3.1) cd ~ && mkdir unknownvpn-py-api && cd unknownvpn-py-api
+  3.2) unzip vpn-api.zip
+  3.3) mv vpn-api/* ~/unknownvpn-py-api
+  3.4) mv vpn-api/.chalice ~/unknownvpn-py-api
+  3.5) rm -r vpn-api
+
+
+4.) Last, to run the application in the background, do the following:
+  4.1) screen -dmS unknownvpn-py-api chalice local --port 1337
