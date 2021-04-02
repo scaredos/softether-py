@@ -10,21 +10,42 @@
 #   Change Password
 #   Set Expiration Date
 import json
-import requests
+import base64
 import datetime
+import requests
+import dateutil
 from chalice import Chalice
+from threading import Thread
+from dateutil.relativedelta import relativedelta
 from requests.auth import HTTPBasicAuth
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 app = Chalice(app_name="private-auth-api")
 # Define information used for requests towards VPN API
 s = requests.Session()
-apiname = "VPN"
-apipass = "BkQhWoSfXJ1337"
+apiname = "VPN" #SoftEther Hub Name
+apipass = ""    #SoftEther Hub Password
 s.auth = (apiname, apipass)
 
 # Define messages to return
-noErrMsg = {"status": "passed"}
+noErrMsg = "success"
 errMsg = {"status": "failed", "error": "Incorrect Usage"}
+
+
+"""
+Will write all exceptions to screen and file
+
+Args: e (Exception): The exception thrown by the code
+"""
+
+
+def handleException(e):
+    print(e)
+    with open('api-error.log', 'a+') as file:
+        file.write(f'{e}\n\n\n')
+
 
 """
 Attempt to recieve user information from VPN server and return it
@@ -40,10 +61,13 @@ Returns:
 
 def getUser(serverip, username):
     getUserPayload = {
-        "jsonrpc": "2.0",
-        "id": "rpc_call_id",
-        "method": "GetUser",
-        "params": {"HubName_str": "VPN", "Name_str": username},
+  "jsonrpc": "2.0",
+  "id": "rpc_call_id",
+  "method": "GetUser",
+  "params": {
+    "HubName_str": "VPN",
+    "Name_str": username
+        }
     }
     res = s.post(f"https://{serverip}/api", json=getUserPayload, verify=False)
     return json.loads(res.text)
@@ -59,11 +83,20 @@ Args:
 """
 
 
-def createUser(serverip, username, password):
+def createUser(serverip, username, password, key):
     dateNow = datetime.datetime.now()
-    dateNew = datetime.datetime.now()
-    if dateNew.month == 12:
-        dateNew = datetime.datetime(dateNew.year, 1, dateNew.day)
+    dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
+    """
+    # Used for UnknownVPN Account Creation
+    if 'MON1H' in key:
+        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
+    elif 'MON3H' in key:
+        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=3)
+    elif 'UVPN6' in key:
+        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=6)
+    elif 'UVP12' in key:
+        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=12)
+    """
     createUserPayload = {
         "jsonrpc": "2.0",
         "id": "rpc_call_id",
@@ -71,8 +104,8 @@ def createUser(serverip, username, password):
         "params": {
             "HubName_str": "VPN",
             "Name_str": username,
-            "CreatedTime_dt": dateNow.strftime("%Y-%m-%dT%H:%M:%S"),
-            "ExpireTime_dt": dateNew.strftime("%Y-%m-%dT%H:%M:%S"),
+            "CreatedTime_dt": dateNow.strftime("%Y-%m-%dT%H:%M:%S.000"),
+            "ExpireTime_dt": dateNew.strftime("%Y-%m-%dT%H:%M:%S.000"),
             "AuthType_u32": 1,
             "Auth_Password_str": password,
         },
@@ -181,21 +214,22 @@ def listConnections(serverip):
         "params": {}
     }
     res = s.post(f'https://{serverip}/api',
-                 json=expireDatePayload, verify=False)
+                 json=enumConnectionsPayload, verify=False)
     return json.loads(res.text)
 
 
 @app.route('/listConnections', methods=["GET"])  # /listConnections?sip
 def listConnection():
     try:
-        serverip = app.current_request.query_params[""]
+        serverip = app.current_request.query_params["sip"]
         conns = listConnections(serverip)
         jsonObj = {
             'ConnectionNum': conns['result']['NumConnection_u32'],
             'ConnectionList': conns['result']['ConnectionList']
         }
         return jsonObj
-    except:
+    except Exception as e:
+        handleException(e)
         return errMsg
 
 
@@ -204,10 +238,14 @@ def createApiUser():
     try:
         username = app.current_request.query_params["username"]
         password = app.current_request.query_params["password"]
+        password = base64.b64decode(password).decode('ascii')
         serverip = app.current_request.query_params["sip"]
-        createUser(serverip, username, password)
+        token = app.current_request.query_params["key"]
+        Thread(target=createUser, args=(serverip, username, password, token)).start()
+        #createUser(serverip, username, password, key)
         return noErrMsg
-    except:
+    except Exception as e:
+        handleException(e)
         return errMsg
 
 
@@ -216,9 +254,10 @@ def deleteApiUser():
     try:
         username = app.current_request.query_params["username"]
         serverip = app.current_request.query_params["sip"]
-        deleteUser(serverip, username)
+        Thread(target=deleteUser, args=(serverip, username)).start()
         return noErrMsg
-    except:
+    except Exception as e:
+        handleException(e)
         return errMsg
 
 
@@ -229,19 +268,35 @@ def changePw():
         username = app.current_request.query_params["username"]
         serverip = app.current_request.query_params["sip"]
         password = app.current_request.query_params["password"]
+        password = base64.b64decode(password).decode('ascii')
         changePassword(serverip, username, password)
         return noErrMsg
-    except:
+    except Exception as e:
+        handleException(e)
         return errMsg
 
 
-@app.route("/setExpDate", methods=["GET"])  # /setExpDate?username&sip
+@app.route("/setExpDate", methods=["GET"])  # /setExpDate?username&sip&key
 def setexpdate():
     try:
         username = app.current_request.query_params["username"]
         serverip = app.current_request.query_params["sip"]
-        expdate = app.current_request.query_params["expdate"]
-        setExpireDate(serverip, username, expdate)
+        key = app.current_request.query_params["key"]
+        dateNow = datetime.datetime.now()
+        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
+        """
+        Used for UnknownVPN Account Update Plan 
+        if 'MON1H' in key:
+            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
+        elif 'MON3H' in key:
+            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=3)
+        elif 'UVPN6' in key:
+            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=6)
+        elif 'UVP12' in key:
+            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=12)
+        """
+        setExpireDate(serverip, username, dateNew.strftime("%Y-%m-%dT%H:%M:%S.000"))
         return noErrMsg
-    except:
+    except Exception as e:
+        handleException(e)
         return errMsg
