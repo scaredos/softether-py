@@ -1,7 +1,6 @@
-# SmallDoink 22/12/2020
+# 22/12/2020
 # Used for SoftEther JSON-RPC API
 #
-# UnknownVPN-API
 #
 # Functions:
 #   Get User
@@ -26,7 +25,7 @@ app = Chalice(app_name="private-auth-api")
 # Define information used for requests towards VPN API
 s = requests.Session()
 apiname = "VPN" #SoftEther Hub Name
-apipass = ""    #SoftEther Hub Password
+apipass = "test"    #SoftEther Hub Password
 s.auth = (apiname, apipass)
 
 # Define messages to return
@@ -86,17 +85,6 @@ Args:
 def createUser(serverip, username, password, key):
     dateNow = datetime.datetime.now()
     dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
-    """
-    # Used for UnknownVPN Account Creation
-    if 'MON1H' in key:
-        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
-    elif 'MON3H' in key:
-        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=3)
-    elif 'UVPN6' in key:
-        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=6)
-    elif 'UVP12' in key:
-        dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=12)
-    """
     createUserPayload = {
         "jsonrpc": "2.0",
         "id": "rpc_call_id",
@@ -284,17 +272,6 @@ def setexpdate():
         key = app.current_request.query_params["key"]
         dateNow = datetime.datetime.now()
         dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
-        """
-        Used for UnknownVPN Account Update Plan 
-        if 'MON1H' in key:
-            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=1)
-        elif 'MON3H' in key:
-            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=3)
-        elif 'UVPN6' in key:
-            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=6)
-        elif 'UVP12' in key:
-            dateNew = datetime.datetime.now() + dateutil.relativedelta.relativedelta(months=12)
-        """
         setExpireDate(serverip, username, dateNew.strftime("%Y-%m-%dT%H:%M:%S.000"))
         return noErrMsg
     except Exception as e:
